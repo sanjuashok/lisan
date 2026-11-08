@@ -61,7 +61,7 @@ Custom preferences guide tone, punctuation, capitalization, and formatting. Clea
 
 - **Escape** cancels. Recording stops automatically after two minutes.
 - Opening Settings, disabling VoiceBar, sleeping, or switching user sessions cancels current recording/processing.
-- **Test shortcut without recording** checks one press/release cycle without opening the microphone.
+- **Test shortcut without recording** checks one press/release cycle without opening the microphone. Settings distinguishes a shortcut detected globally from one detected only inside VoiceBar. “Global listener installed” describes registration, not a successful cross-app test.
 - **Test text insertion** arms a single test: focus another app’s text field and press/release the shortcut to insert “VoiceBar insertion test.”
 - If the cursor, field contents, or foreground app changes during processing, insertion is blocked. Use **Copy Last Transcript** from the menu to recover the text.
 - Password fields and fields without an accessible text selection are rejected.
@@ -107,7 +107,7 @@ Also test clipboard preservation, denied/re-granted permissions, cancellation, m
 ## Architecture
 
 - **VoiceBarCore:** shortcut recognition, cleanup prompt construction, basic cleanup, selection snapshots, and bar geometry.
-- **VoiceBar:** AppKit/SwiftUI overlay and settings, AVAudioEngine recording, FluidAudio inference, Foundation Models cleanup, Accessibility-based target validation, and paste delivery.
+- **VoiceBar:** AppKit/SwiftUI overlay and settings, paired native local/global keyboard monitors, AVAudioEngine recording, FluidAudio inference, Foundation Models cleanup, Accessibility-based target validation, and paste delivery. Keyboard callbacks queue work so target inspection and microphone startup do not block event delivery. Resetting the listener invalidates pending events.
 - **Tests:** a standalone regression runner that works without XCTest.
 
 Models remain loaded between dictations for lower latency; no microphone capture runs while idle. Settings and cleanup preferences are stored in local user defaults. Transcripts remain in memory until replaced, cleared, or the app quits.

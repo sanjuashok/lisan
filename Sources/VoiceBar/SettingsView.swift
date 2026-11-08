@@ -75,7 +75,7 @@ struct SettingsView: View {
                             .font(.system(size: 11)).foregroundStyle(.secondary)
                         Button("Show App in Finder") { controller.revealInstalledApp() }
                     }
-                    Text(state.shortcutAvailable ? "Global shortcut listener is ready." : "Global shortcut access is missing. The shortcut can still be tested while this Settings window is focused.")
+                    Text(state.shortcutAvailable ? "Global listener installed. Test the shortcut in another app to verify detection." : "Global shortcut access is missing. The shortcut can still be tested while this Settings window is focused.")
                         .font(.system(size: 11)).foregroundStyle(.secondary)
                     Button("Test shortcut without recording") { controller.startShortcutTest() }
                     Text(state.lastShortcutEvent).font(.system(size: 11)).foregroundStyle(.secondary)

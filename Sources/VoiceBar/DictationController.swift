@@ -28,8 +28,9 @@ final class DictationController {
             guard let self, self.state.phase == .listening else { return }
             self.state.amplitude = amplitude
         }
-        keyboard.onHold = { [weak self] held in
-            self?.state.lastShortcutEvent = held ? "Shortcut detected — holding." : "Shortcut detected — released."
+        keyboard.onHold = { [weak self] held, scope in
+            let origin = scope == .global ? "Global shortcut" : "Shortcut inside VoiceBar"
+            self?.state.lastShortcutEvent = "\(origin) detected: \(held ? "holding" : "released")."
             if held { self?.begin() } else { self?.finish() }
         }
         keyboard.onCancel = { [weak self] in self?.cancel() }
@@ -68,7 +69,7 @@ final class DictationController {
         state.accessibilityGranted = AXIsProcessTrusted()
         state.inputMonitoringGranted = CGPreflightListenEventAccess()
         if state.enabled {
-            state.shortcutAvailable = keyboard.start()
+            state.shortcutAvailable = keyboard.start(reinstall: showFeedback)
         } else {
             state.shortcutAvailable = false
         }

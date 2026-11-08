@@ -1,82 +1,83 @@
 import AppKit
 import VoiceBarCore
 
-/// A non-consuming event tap observes physical press/release across applications.
-/// Fn remains available to macOS; Settings explains how to turn off its system action.
+/// Observe both scopes: AppKit's global monitor excludes this application,
+/// and its local monitor excludes every other application.
 @MainActor
 final class ShortcutMonitor {
+    enum Scope { case local, global }
+
     var shortcut: WakeShortcut = .function
-    var onHold: ((Bool) -> Void)?
+    var onHold: ((Bool, Scope) -> Void)?
     var onCancel: (() -> Void)?
     private var recognizer = ShortcutRecognizer()
-    private var tap: CFMachPort?
-    private var source: CFRunLoopSource?
+    private var globalMonitor: Any?
     private var localMonitor: Any?
+    private var generation: UInt64 = 0
+    private let eventMask: NSEvent.EventTypeMask = [.flagsChanged, .keyDown, .keyUp]
 
-    func start() -> Bool {
-        // Local events work in Settings even before macOS grants global monitoring.
-        // Both paths share the hold tracker, so a key is never handled twice.
+    func start(reinstall: Bool = false) -> Bool {
         if localMonitor == nil {
-            localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.flagsChanged, .keyDown, .keyUp]) { [weak self] event in
-                if let cgEvent = event.cgEvent {
-                    MainActor.assumeIsolated { self?.receive(cgEvent.type, event: cgEvent) }
-                }
+            localMonitor = NSEvent.addLocalMonitorForEvents(matching: eventMask) { [weak self] event in
+                MainActor.assumeIsolated { self?.enqueue(event, scope: .local) }
                 return event
             }
         }
-        guard CGPreflightListenEventAccess() || AXIsProcessTrusted() else {
-            if let tap { CFMachPortInvalidate(tap) }
-            if let source { CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes) }
-            tap = nil; source = nil
+        guard AXIsProcessTrusted() || CGPreflightListenEventAccess() else {
+            removeGlobalMonitor()
             return false
         }
-        if let tap, CGEvent.tapIsEnabled(tap: tap) { return true }
-        if let oldTap = tap { CFMachPortInvalidate(oldTap) }
-        if let source { CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes) }
-        let mask = (1 << CGEventType.flagsChanged.rawValue) | (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.keyUp.rawValue)
-        tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap,
-                               options: .listenOnly, eventsOfInterest: CGEventMask(mask), callback: { _, type, event, context in
-            guard let context else { return Unmanaged.passUnretained(event) }
-            let monitor = Unmanaged<ShortcutMonitor>.fromOpaque(context).takeUnretainedValue()
-            // The tap is installed on the main run loop.
-            MainActor.assumeIsolated { monitor.receive(type, event: event) }
-            return Unmanaged.passUnretained(event)
-        }, userInfo: Unmanaged.passUnretained(self).toOpaque())
-        guard let tap else { return false }
-        source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-        CGEvent.tapEnable(tap: tap, enable: true)
-        return true
+        if reinstall { removeGlobalMonitor(); reset() }
+        if globalMonitor == nil {
+            globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: eventMask) { [weak self] event in
+                MainActor.assumeIsolated { self?.enqueue(event, scope: .global) }
+            }
+        }
+        // Registration is not evidence of delivery. Settings reports separately
+        // whether an actual shortcut arrived from another application.
+        return globalMonitor != nil
     }
+
     func stop() {
-        if let tap { CGEvent.tapEnable(tap: tap, enable: false); CFMachPortInvalidate(tap) }
-        if let source { CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes) }
-        tap = nil; source = nil
+        removeGlobalMonitor()
         if let localMonitor { NSEvent.removeMonitor(localMonitor) }
         localMonitor = nil
         reset()
     }
+
     func reset() {
+        generation &+= 1
         recognizer.reset()
         onCancel?()
     }
-    private func receive(_ type: CGEventType, event: CGEvent) {
-        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            reset()
-            if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
-            return
-        }
-        let key = event.getIntegerValueField(.keyboardEventKeycode)
-        if type == .keyDown && key == 53 { reset(); return }
+
+    private func removeGlobalMonitor() {
+        if let globalMonitor { NSEvent.removeMonitor(globalMonitor) }
+        globalMonitor = nil
+    }
+
+    private func enqueue(_ event: NSEvent, scope: Scope) {
         let input: WakeKeyEvent
-        switch type {
+        switch event.type {
         case .flagsChanged: input = .flagsChanged
         case .keyDown: input = .keyDown
         case .keyUp: input = .keyUp
         default: return
         }
-        if let transition = recognizer.receive(input, keyCode: key,
-            function: event.flags.contains(.maskSecondaryFn), control: event.flags.contains(.maskControl),
-            option: event.flags.contains(.maskAlternate), shortcut: shortcut) { onHold?(transition) }
+        let key = Int64(event.keyCode)
+        let flags = event.modifierFlags
+        let queuedGeneration = generation
+        // AX queries and audio-engine startup must not block keyboard dispatch.
+        // FIFO delivery preserves a quick press/release; reset invalidates any
+        // queued events so a stopped/cancelled listener cannot start recording.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.generation == queuedGeneration else { return }
+            if input == .keyDown && key == 53 { self.reset(); return }
+            if let transition = self.recognizer.receive(input, keyCode: key,
+                function: flags.contains(.function), control: flags.contains(.control),
+                option: flags.contains(.option), shortcut: self.shortcut) {
+                self.onHold?(transition, scope)
+            }
+        }
     }
 }
