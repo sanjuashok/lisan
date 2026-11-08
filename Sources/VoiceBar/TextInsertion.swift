@@ -13,7 +13,9 @@ final class TextInsertion {
     enum Result { case inserted, pasteSent }
 
     func capture() throws -> Target {
-        guard AXIsProcessTrusted() else { throw VoiceBarError("Allow VoiceBar in Privacy & Security → Accessibility.") }
+        guard AXIsProcessTrusted() else {
+            throw VoiceBarError("VoiceBar needs Accessibility access to insert text. Click Open Settings beside Accessibility below. On newer macOS versions, this permission is called Device Control and Data Access.")
+        }
         guard let app = NSWorkspace.shared.frontmostApplication,
               app.processIdentifier != ProcessInfo.processInfo.processIdentifier,
               let element = focusedElement(pid: app.processIdentifier) else {

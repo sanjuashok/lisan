@@ -92,7 +92,7 @@ struct VoiceBarView: View {
         case .listening: return "Listening…"
         case .processing: return "Processing…"
         case .complete: return state.completionLabel
-        case .failure: return "Check VoiceBar menu"
+        case .failure: return "Open VoiceBar Settings"
         }
     }
 }

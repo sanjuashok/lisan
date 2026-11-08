@@ -44,6 +44,9 @@ struct SettingsView: View {
                     }
                 }
 
+                Text(state.status).font(.system(size: 12)).foregroundStyle(.secondary).textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+
                 section("READY WHEN YOU ARE") {
                     permissionRow("Microphone", subtitle: "Listen only while you hold the shortcut.", granted: state.microphoneGranted, buttonTitle: "Allow / Settings") {
                         controller.requestMicrophone()
@@ -162,8 +165,6 @@ struct SettingsView: View {
                     Text("Audio is kept in memory and discarded after dictation. No accounts, no servers, no audio uploads.")
                         .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
-                Text(state.status).font(.system(size: 11)).foregroundStyle(.secondary).textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
                 if let latency = state.lastLatency {
                     Text(String(format: "Last processing + insertion: %.2f seconds", latency)).font(.system(size: 10, design: .monospaced)).foregroundStyle(.tertiary)
                 }
