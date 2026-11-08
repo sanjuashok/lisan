@@ -1,115 +1,165 @@
 # VoiceBar
 
-A native macOS menu bar app for local, hold-to-talk dictation. A small burnt-orange pill expands while you speak, then transcribes, cleans, and inserts text at the original cursor.
+**Hold a key, speak, and let VoiceBar type for you.**
 
-## Features
+VoiceBar is a small Mac app that turns your speech into text in the app you are using. A tiny orange bar near the bottom of your screen expands while you speak, then shrinks when your text is inserted. It stays out of the way and does not take focus away from your work.
 
-- Hold **Fn / Globe** to record; release to transcribe. **Control–Option–Space** is available as an alternate shortcut.
-- A nonactivating, click-through floating bar: 80 × 10 pt idle, 280 × 34 pt active, with a live cream-colored waveform.
-- Local Parakeet v3 speech recognition through [FluidAudio](https://github.com/FluidInference/FluidAudio).
-- On-device Apple Foundation Models cleanup, with editable cleanup instructions saved locally.
-- Conservative filler and punctuation cleanup when intelligent cleanup is disabled or unavailable.
-- Cursor and focus validation before pasting, clipboard restoration, and recoverable transcripts.
-- Menu bar controls, Launch at Login, and permission diagnostics.
+Speech recognition and text cleanup happen on your Mac. After the initial downloads, you can dictate without an internet connection. No account, subscription, or separate AI server is needed.
 
-Audio stays in memory and is discarded after dictation. There are no accounts, external inference servers, or Ollama dependencies. Recognition works offline after initial model setup.
+## Minimum system requirements
 
-## Requirements
-
-- Apple Silicon Mac running macOS 14 or later.
-- Xcode 26+ or Apple Command Line Tools with Swift 6.2+ and a macOS 26+ SDK to build production.
-- macOS 26+ with Apple Intelligence available for intelligent cleanup and custom cleanup instructions.
-- Internet for the initial dependency and speech model downloads. Allow up to 3 GB of free space for model setup.
-
-## Build
-
-```sh
-# If necessary, select the installed Xcode toolchain:
-sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
-
-./scripts/build-app.sh
-open build/VoiceBar.app
-```
-
-The build script creates an ad-hoc signed app at `build/VoiceBar.app`. Move it into `/Applications` before granting permissions or enabling Launch at Login. Run the app bundle rather than `swift run VoiceBar`, so macOS can associate permissions with the app.
-
-For a distribution build, set `CODE_SIGN_IDENTITY` to an appropriate signing identity and notarize separately. This repository does not provide a notarized release.
-
-## Setup
-
-1. Open **Settings** from the VoiceBar menu bar icon.
-2. Allow **Microphone** and **Accessibility** access. On newer macOS versions, the Accessibility privacy page may be named **Device Control and Data Access**.
-3. If the global shortcut listener is unavailable, open **Input Monitoring** from VoiceBar Settings and enable VoiceBar there.
-4. Click **Check Permissions** for a timestamped result. Use **Restart VoiceBar** after changing permissions.
-5. Click **Download** to prepare the local speech model.
-6. For Fn / Globe, set “Press 🌐 key to” to **Do Nothing** in System Settings → Keyboard and disable conflicting Dictation shortcuts, or choose the alternate VoiceBar shortcut.
-7. Focus an editable text field, hold the shortcut, speak, and release.
-
-**Development-build permissions:** rebuilding an ad-hoc signed app can leave macOS showing an enabled entry for an older signature while denying the new build. Remove VoiceBar from that permission list, re-add the installed app using **Show App in Finder**, and restart. Checking permissions alone cannot repair an outdated grant.
-
-## Customize cleanup
-
-In **Settings → Intelligent text cleanup**, enter your preferences in **Cleanup instructions**. For example:
-
-> Keep it casual. Use contractions. Avoid semicolons. Don’t add a final period.
-
-Instructions save automatically on this Mac and apply to subsequent dictations when intelligent cleanup is enabled and available. The field accepts up to 1,000 characters. Leave it blank or click **Reset** to restore the default style.
-
-Custom preferences guide tone, punctuation, capitalization, and formatting. Cleanup still instructs the model to preserve meaning, names, numbers, and factual information, and to treat dictated text as material to edit rather than instructions to execute. Model output can vary; custom preferences are not applied by the basic fallback. Turning intelligent cleanup off is not a verbatim mode: basic filler removal and punctuation cleanup still run.
-
-## Use and recovery
-
-- **Escape** cancels. Recording stops automatically after two minutes.
-- Opening Settings, disabling VoiceBar, sleeping, or switching user sessions cancels current recording/processing.
-- **Test shortcut without recording** checks one press/release cycle without opening the microphone. Settings distinguishes a shortcut detected globally from one detected only inside VoiceBar. “Global listener installed” describes registration, not a successful cross-app test.
-- **Test text insertion** arms a single test: focus another app’s text field and press/release the shortcut to insert “VoiceBar insertion test.”
-- If the cursor, field contents, or foreground app changes during processing, insertion is blocked. Use **Copy Last Transcript** from the menu to recover the text.
-- Password fields and fields without an accessible text selection are rejected.
-- Detailed status is available in Settings; the menu contains controls without a dictation-status banner.
-
-Insertion uses the editor’s normal Paste action and checks the resulting field value when available. It never automatically retries a dispatched paste, since a delayed editor could insert it twice. The previous clipboard contents are restored unless another app or the user changes the clipboard during insertion. Some editors cannot expose enough information to verify the result.
-
-## Development and verification
-
-```sh
-./scripts/test.sh       # Core regression checks and native UI preview compilation
-./scripts/build-app.sh  # Production build with the speech engine
-```
-
-Core checks cover physical Fn filtering, duplicate events, alternate shortcut release, cleanup preferences and length bounds, meaning preservation, UTF-16 selections, insertion verification, changed cursors, and display geometry. CI runs the checks and compiles the production app without downloading speech model weights.
-
-For a UI-only preview with an older Swift 5.10 toolchain:
-
-```sh
-VOICEBAR_PREVIEW=1 ./scripts/build-app.sh
-open build/VoiceBar.app --args --settings
-# Export the actual SwiftUI bar states:
-.build/release/VoiceBar --export-previews build/previews
-```
-
-The preview uses a separate bundle identifier and cannot transcribe.
-
-### Acceptance targets
-
-These targets require device testing; passing the core checks does not establish them:
-
-| Target | Validation |
+| What you need | Requirement |
 | --- | --- |
-| Wake-to-visual under 100 ms | Measure physical shortcut input to visible response. |
-| Expansion/collapse 150–200 ms | Check animation with and without Reduce Motion. |
-| Processing under 3 seconds | Measure 10-second utterances on an M1 Pro, including warm and cold runs. |
-| At least 98% insertion success | At least 100 attempts across native and browser/Electron editors, including selected text, emoji, and multiline content. |
-| No focus stealing | Switch fields/apps during processing and confirm no unintended insertion. |
-| Offline operation | Repeat recognition after setup with networking disabled. |
+| Mac | **Apple Silicon: M1 or newer.** The current build does not support Intel Macs. |
+| macOS | **macOS 14 Sonoma or later** for dictation and basic text cleanup. |
+| Intelligent cleanup and custom instructions | **macOS 26 or later**, with Apple Intelligence enabled and its model available on your Mac. |
+| Free space | Allow about **3 GB for the speech model setup**. Xcode and Apple Intelligence downloads need additional space. |
+| Microphone | A working built-in or external microphone. |
+| Internet | Needed to install and download the speech model the first time. Dictation works offline afterward. |
+| Permissions | Microphone and Accessibility access; Input Monitoring if needed for the shortcut to work in other apps. |
 
-Also test clipboard preservation, denied/re-granted permissions, cancellation, microphone changes, multiple displays, hidden/side Docks, fullscreen Spaces, and Launch at Login.
+To check your Mac and macOS version, choose **Apple menu → About This Mac**. Look for **Chip** and the macOS version. If it lists an Intel processor, this build will not run.
 
-## Architecture
+A minimum memory (RAM) requirement has not been established through testing. macOS 14 is the app’s configured minimum; older-system compatibility and performance on a base M1 still need testing.
 
-- **VoiceBarCore:** shortcut recognition, cleanup prompt construction, basic cleanup, selection snapshots, and bar geometry.
-- **VoiceBar:** AppKit/SwiftUI overlay and settings, paired native local/global keyboard monitors, AVAudioEngine recording, FluidAudio inference, Foundation Models cleanup, Accessibility-based target validation, and paste delivery. Keyboard callbacks queue work so target inspection and microphone startup do not block event delivery. Resetting the listener invalidates pending events.
-- **Tests:** a standalone regression runner that works without XCTest.
+Without Apple Intelligence, VoiceBar still transcribes speech and performs basic punctuation and filler-word cleanup. Custom cleanup instructions require intelligent cleanup.
 
-Models remain loaded between dictations for lower latency; no microphone capture runs while idle. Settings and cleanup preferences are stored in local user defaults. Transcripts remain in memory until replaced, cleared, or the app quits.
+## Install VoiceBar
 
-Voice commands, Slack navigation, agent routing, per-app profiles, and rewriting selected text are future work, not current features.
+**There is no ready-to-install app download yet.** For now, installation means building the app once from this repository using Xcode, Apple’s free app-building software. The steps below walk through that process. Xcode is needed to build VoiceBar, but not to run an already-built copy.
+
+### 1. Install Xcode
+
+1. Install **Xcode 26 or later** from the Mac App Store, using a version compatible with your Mac’s macOS version. Building VoiceBar may require a newer macOS than running it.
+2. Open Xcode once and finish any setup steps it requests.
+3. Open **Terminal**, which you can find using Spotlight (**Command–Space**, then type “Terminal”).
+4. Paste this command and press Return to select Xcode’s tools:
+
+   ```sh
+   sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+   ```
+
+   If asked, enter your Mac login password. Terminal does not show characters while you type the password.
+
+### 2. Download and build VoiceBar
+
+In Terminal, run these commands one line at a time:
+
+```sh
+mkdir -p ~/Developer
+cd ~/Developer
+git clone https://github.com/sanjuashok/voicebar.git
+cd voicebar
+./scripts/build-app.sh
+```
+
+The first build downloads the components VoiceBar needs and may take several minutes. Wait until you see **Built**, followed by a path ending in **VoiceBar.app**. If the build reports an error, stop there and check that Xcode setup is complete and version 26 or later is selected.
+
+Already have this repository on your Mac? Use that folder instead of cloning a second copy.
+
+### 3. Move the app into Applications
+
+1. In the same Terminal window, run:
+
+   ```sh
+   open build
+   ```
+
+2. Finder opens a folder containing **VoiceBar.app**. Drag **VoiceBar.app** into **Applications**.
+3. Open **VoiceBar** from Applications. Keep using this copy when granting permissions and enabling Launch at Login.
+
+VoiceBar runs from its waveform icon in the **menu bar at the top of your screen**. It does not have a regular app window during everyday use. Click the icon and choose **Settings…** whenever you need to configure it.
+
+This is an early development build and has not been notarized, meaning Apple has not checked this app for distribution. If macOS blocks opening a copy you built from this repository, review the message in **System Settings → Privacy & Security**. Use **Open Anyway** only if you trust that copy.
+
+## First-time setup
+
+### Allow the permissions
+
+Open **VoiceBar menu → Settings…**, then enable the requested access:
+
+| Permission | Why VoiceBar needs it |
+| --- | --- |
+| **Microphone** | To hear you while you hold the dictation shortcut. |
+| **Accessibility** | To put the finished text into your current text field. On newer macOS versions, this page may be called **Device Control and Data Access**. |
+| **Input Monitoring**, if requested | To detect the shortcut while you are using another app. |
+
+Use the buttons in VoiceBar Settings to open the relevant macOS settings. Turn on **VoiceBar** in each requested list. Return to VoiceBar, click **Restart VoiceBar**, then **Check Permissions** to confirm access is ready.
+
+### Download the speech model
+
+In VoiceBar Settings, click **Download** beside **Parakeet**. This downloads the files that let VoiceBar recognize speech on your Mac. Keep the app open and allow several minutes. When it says **Downloaded and ready for offline dictation**, you are ready to speak.
+
+### Choose your shortcut
+
+The default is **Fn / Globe**, usually near the lower-left corner of your keyboard.
+
+For this shortcut, open **System Settings → Keyboard** and set **Press 🌐 key to** to **Do Nothing**. Turn off any macOS Dictation shortcut that uses the same key.
+
+You can instead choose **Control–Option–Space** under **Hold to dictate** in VoiceBar Settings. Hold all three keys together to speak, then release them.
+
+## Dictate into an app
+
+1. Open an app such as TextEdit and click where you want the text to appear.
+2. Hold **Fn / Globe** (or your alternate shortcut). The orange bar expands while it listens.
+3. Speak naturally, then release the key.
+4. Keep the cursor in place while VoiceBar processes your speech. The text appears and the bar shrinks again.
+
+Press **Escape** to cancel. Recordings stop automatically after two minutes. Opening VoiceBar Settings also cancels a recording or unfinished dictation.
+
+Use **Launch at Login** in the VoiceBar menu if you want the app to start when you sign into your Mac. **VoiceBar Enabled** turns dictation on or off; **Quit VoiceBar** closes the app.
+
+## Customize text cleanup
+
+Open **VoiceBar Settings**, turn on **Intelligent text cleanup**, and enter your preferences in **Cleanup instructions**. For example:
+
+> Keep the tone professional and natural. Use bullet points for clear lists or multiple distinct items. Do not use em-dashes. Preserve my meaning and keep the wording concise.
+
+Your instructions save automatically and apply to future dictations. You can enter up to 1,000 characters. Leave the box blank or click **Reset** to use the default style.
+
+Intelligent cleanup requires macOS 26 or later and available Apple Intelligence. Its wording can vary, so review important text before sending it. Turning intelligent cleanup off still leaves basic punctuation and filler-word cleanup on; it does not produce an exact word-for-word transcript.
+
+## If something does not work
+
+### Nothing happens when I hold the shortcut
+
+1. Make sure **VoiceBar Enabled** is checked in the menu.
+2. Open **Settings → Check Permissions**, and enable any missing access.
+3. Click **Restart VoiceBar** after changing permissions.
+4. Try **Control–Option–Space** if Fn is being used by macOS or another app.
+5. Click **Test shortcut without recording**, switch to another app, then physically hold and release your shortcut. This checks the bar without using your microphone.
+
+“Global listener installed” means VoiceBar has set up shortcut detection. A successful test in another app confirms that it actually receives your key presses.
+
+### Permissions look enabled, but VoiceBar still cannot use them
+
+This can happen after replacing or rebuilding the app. macOS may still recognize the older copy.
+
+1. Quit VoiceBar.
+2. Open **System Settings → Privacy & Security**, then the affected permission page.
+3. If the page has a list with **−** and **+** buttons, select only **VoiceBar**, remove its old entry, then add **VoiceBar from Applications** again and enable it. For Microphone, toggle VoiceBar’s access off and back on if needed.
+4. Reopen VoiceBar from Applications and click **Check Permissions**.
+
+If shown, **Show App in Finder** in VoiceBar Settings helps you locate the copy you are running.
+
+### The bar responds, but no text appears
+
+- Check the status at the top of VoiceBar Settings for an explanation.
+- Confirm that the speech model is downloaded and Microphone and Accessibility are allowed.
+- Try **Test text insertion**, switch to TextEdit, click in its document, then press and release your shortcut. It should insert **“VoiceBar insertion test.”** without recording audio.
+- Keep the original text field focused while processing. Moving the cursor, editing the field, or switching apps can cancel insertion to avoid putting text in the wrong place.
+- If **Copy Last Transcript** appears in the VoiceBar menu, use it to copy your last result and paste it yourself.
+
+Password fields and some apps’ text fields are not supported. Some editors also prevent VoiceBar from confirming whether a paste succeeded. Start with TextEdit when checking whether the app is working.
+
+## Privacy and current limits
+
+Audio is held temporarily in memory and discarded after dictation. Speech recognition and cleanup run on your Mac. VoiceBar does not upload audio. Cleanup preferences are saved locally; the last transcript is kept in memory until replaced, cleared from the menu, or the app quits.
+
+VoiceBar temporarily uses your clipboard to insert text, then restores its previous contents unless you or another app changed the clipboard in the meantime.
+
+This is an early version. Fn dictation and the alternate shortcut have been tested successfully in TextEdit, but compatibility and speed across all Macs and apps have not been established. Voice commands such as “message Ahmed,” Slack navigation, and connections to AI agents are future features.
+
+## For contributors
+
+See the [developer guide](DEVELOPMENT.md) for build details, automated checks, architecture, and performance targets.
