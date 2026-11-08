@@ -29,7 +29,7 @@ final class DictationController {
             self.state.amplitude = amplitude
         }
         keyboard.onHold = { [weak self] held, scope in
-            let origin = scope == .global ? "Global shortcut" : "Shortcut inside VoiceBar"
+            let origin = scope == .global ? "Global shortcut" : "Shortcut inside lisan"
             self?.state.lastShortcutEvent = "\(origin) detected: \(held ? "holding" : "released")."
             if held { self?.begin() } else { self?.finish() }
         }
@@ -76,13 +76,13 @@ final class DictationController {
         if showFeedback {
             let time = Date().formatted(date: .omitted, time: .standard)
             if state.microphoneGranted && state.accessibilityGranted && (state.shortcutAvailable || !state.enabled) {
-                state.permissionFeedback = "Checked at \(time). Permissions are ready.\(state.enabled ? "" : " Enable VoiceBar from its menu to use dictation.")"
+                state.permissionFeedback = "Checked at \(time). Permissions are ready.\(state.enabled ? "" : " Enable lisan from its menu to use dictation.")"
             } else {
                 var missing: [String] = []
                 if !state.microphoneGranted { missing.append("Microphone") }
                 if !state.accessibilityGranted { missing.append("Accessibility") }
                 if state.enabled && !state.shortcutAvailable { missing.append("global shortcut access") }
-                state.permissionFeedback = "Checked at \(time). Still missing: \(missing.joined(separator: ", ")). Open the corresponding settings below. After changing access, restart VoiceBar."
+                state.permissionFeedback = "Checked at \(time). Still missing: \(missing.joined(separator: ", ")). Open the corresponding settings below. After changing access, restart lisan."
             }
         }
     }
@@ -112,10 +112,10 @@ final class DictationController {
 
     private func openPrivacySettings(_ pane: String, name: String) {
         refreshPermissions()
-        state.permissionFeedback = "Enable VoiceBar under \(name), then return here and restart VoiceBar. If it is already enabled but access is still missing, remove the old VoiceBar entry and add this installed copy again using Show App in Finder."
+        state.permissionFeedback = "Enable lisan under \(name), then return here and restart lisan. If it is already enabled but access is still missing, remove the old lisan entry and add this installed copy again using Show App in Finder."
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)")!
         if !NSWorkspace.shared.open(url) {
-            state.permissionFeedback = "Could not open System Settings. Open it manually, choose Privacy & Security → \(name), and enable VoiceBar."
+            state.permissionFeedback = "Could not open System Settings. Open it manually, choose Privacy & Security → \(name), and enable lisan."
         }
     }
 
@@ -137,14 +137,14 @@ final class DictationController {
         relaunch.arguments = ["-c", """
             while /bin/kill -0 "$1" 2>/dev/null; do /bin/sleep 0.1; done
             exec /usr/bin/open -n "$2" --args --settings
-            """, "voicebar-relaunch", String(ProcessInfo.processInfo.processIdentifier), Bundle.main.bundlePath]
+            """, "lisan-relaunch", String(ProcessInfo.processInfo.processIdentifier), Bundle.main.bundlePath]
         do {
             try relaunch.run()
             NSApp.terminate(nil)
         } catch {
             state.restarting = false
             refreshPermissions()
-            state.permissionFeedback = "Restart failed: \(error.localizedDescription). Quit VoiceBar from its menu and reopen it from Applications."
+            state.permissionFeedback = "Restart failed: \(error.localizedDescription). Quit lisan from its menu and reopen it from Applications."
         }
     }
 
@@ -155,7 +155,7 @@ final class DictationController {
         #else
         guard !state.preparing, !state.modelsReady else { return }
         state.preparing = true
-        state.status = allowDownload ? "Downloading and preparing Parakeet. Keep VoiceBar open…" : "Checking local speech model…"
+        state.status = allowDownload ? "Downloading and preparing Parakeet. Keep lisan open…" : "Checking local speech model…"
         setupTask = Task {
             defer { state.preparing = false }
             do {
@@ -182,7 +182,7 @@ final class DictationController {
     func startInsertionTest() {
         cancel()
         insertionTestActive = true
-        state.status = "Click a text field in another app, then press and release \(state.shortcut.title). VoiceBar will insert ‘VoiceBar insertion test.’ without recording audio. Escape cancels."
+        state.status = "Click a text field in another app, then press and release \(state.shortcut.title). lisan will insert ‘lisan insertion test.’ without recording audio. Escape cancels."
     }
 
     private func begin() {
@@ -198,7 +198,7 @@ final class DictationController {
             state.status = "Shortcut detected. Bar test only; no audio is recorded."
             return
         }
-        guard state.modelsReady else { showError("Speech model is not ready. Open Settings from the VoiceBar menu."); return }
+        guard state.modelsReady else { showError("Speech model is not ready. Open Settings from the lisan menu."); return }
         do {
             target = try insertion.capture()
             bar.position(on: target?.screen)
@@ -233,7 +233,7 @@ final class DictationController {
             let id = sessionID
             processingTask = Task {
                 do {
-                    let result = try await insertion.insert("VoiceBar insertion test.", into: target)
+                    let result = try await insertion.insert("lisan insertion test.", into: target)
                     guard sessionID == id, !Task.isCancelled else { return }
                     showInsertionResult(result)
                 } catch {
@@ -296,7 +296,7 @@ final class DictationController {
             state.status = "Text insertion verified. Ready for the next dictation."
         case .pasteSent:
             state.completionLabel = "Paste sent"
-            state.status = "Paste sent, but this editor did not expose a matching result. If nothing appeared, copy the last transcript from the VoiceBar menu."
+            state.status = "Paste sent, but this editor did not expose a matching result. If nothing appeared, copy the last transcript from the lisan menu."
         }
         state.phase = .complete
         collapse(after: 700_000_000)

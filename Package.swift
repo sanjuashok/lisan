@@ -11,9 +11,9 @@ if !preview {
 }
 
 let package = Package(
-    name: "VoiceBar",
+    name: "lisan",
     platforms: [.macOS(.v14)],
-    products: [.executable(name: "VoiceBar", targets: ["VoiceBar"])],
+    products: [.executable(name: "lisan", targets: ["VoiceBar"])],
     dependencies: dependencies,
     targets: [
         .target(name: "VoiceBarCore"),

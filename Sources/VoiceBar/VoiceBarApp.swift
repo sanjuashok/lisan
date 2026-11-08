@@ -39,13 +39,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         mainMenu.addItem(root)
         add("Settings…", action: #selector(showSettings), key: ",", to: appMenu)
         appMenu.addItem(.separator())
-        add("Quit VoiceBar", action: #selector(quit), key: "q", to: appMenu)
+        add("Quit lisan", action: #selector(quit), key: "q", to: appMenu)
         NSApp.mainMenu = mainMenu
         controller = DictationController(state: state)
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        statusItem.button?.image = NSImage(systemSymbolName: "waveform", accessibilityDescription: "VoiceBar")
+        statusItem.button?.image = NSImage(systemSymbolName: "waveform", accessibilityDescription: "lisan")
         statusItem.button?.image?.isTemplate = true
-        statusItem.button?.toolTip = "VoiceBar"
+        statusItem.button?.toolTip = "lisan"
         let menu = NSMenu()
         menu.delegate = self
         statusItem.menu = menu
@@ -68,11 +68,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func rebuildMenu(_ menu: NSMenu) {
         menu.removeAllItems()
-        let title = NSMenuItem(title: "VoiceBar", action: nil, keyEquivalent: "")
+        let title = NSMenuItem(title: "lisan", action: nil, keyEquivalent: "")
         title.isEnabled = false
         menu.addItem(title)
         menu.addItem(.separator())
-        let enabled = add("VoiceBar Enabled", action: #selector(toggleEnabled), to: menu)
+        let enabled = add("lisan Enabled", action: #selector(toggleEnabled), to: menu)
         enabled.state = state.enabled ? .on : .off
         add("Settings…", action: #selector(showSettings), key: ",", to: menu)
         let login = add("Launch at Login", action: #selector(toggleLogin), to: menu)
@@ -83,7 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             add("Clear Last Transcript", action: #selector(clearTranscript), to: menu)
         }
         menu.addItem(.separator())
-        add("Quit VoiceBar", action: #selector(quit), key: "q", to: menu)
+        add("Quit lisan", action: #selector(quit), key: "q", to: menu)
     }
     @discardableResult
     private func add(_ title: String, action: Selector, key: String = "", to menu: NSMenu) -> NSMenuItem {
@@ -104,7 +104,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if SMAppService.mainApp.status == .enabled { try SMAppService.mainApp.unregister() }
             else { try SMAppService.mainApp.register() }
             if SMAppService.mainApp.status == .requiresApproval {
-                state.status = "Approve VoiceBar in System Settings → General → Login Items."
+                state.status = "Approve lisan in System Settings → General → Login Items."
                 SMAppService.openSystemSettingsLoginItems()
             }
         } catch { controller.showError("Launch at Login: \(error.localizedDescription)") }

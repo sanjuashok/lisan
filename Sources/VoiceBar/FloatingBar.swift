@@ -74,7 +74,7 @@ struct VoiceBarView: View {
         .frame(width: 308, height: 50, alignment: .bottom)
         .offset(y: -8)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(state.phase == .idle ? "VoiceBar ready" : label)
+        .accessibilityLabel(state.phase == .idle ? "lisan ready" : label)
     }
     private var icon: String {
         if state.shortcutTestActive && state.phase == .listening { return "keyboard" }
@@ -92,7 +92,7 @@ struct VoiceBarView: View {
         case .listening: return "Listening…"
         case .processing: return "Processing…"
         case .complete: return state.completionLabel
-        case .failure: return "Open VoiceBar Settings"
+        case .failure: return "Open lisan Settings"
         }
     }
 }

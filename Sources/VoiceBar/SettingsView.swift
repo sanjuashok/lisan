@@ -12,7 +12,7 @@ final class SettingsWindowController {
         if window == nil {
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 650),
                                   styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
-            window.title = "VoiceBar Settings"
+            window.title = "lisan Settings"
             window.titlebarAppearsTransparent = true
             window.isReleasedWhenClosed = false
             window.contentView = NSHostingView(rootView: SettingsView(state: state, controller: controller))
@@ -63,7 +63,7 @@ struct SettingsView: View {
                     }
                     HStack {
                         Button("Check Permissions") { controller.refreshPermissions(showFeedback: true) }
-                        Button("Restart VoiceBar") { controller.restartForPermissions() }
+                        Button("Restart lisan") { controller.restartForPermissions() }
                             .disabled(state.restarting)
                     }
                     if !state.permissionFeedback.isEmpty {
@@ -71,7 +71,7 @@ struct SettingsView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     if !state.accessibilityGranted || !state.shortcutAvailable {
-                        Text("Already enabled in macOS? An app update can leave an old permission entry. Remove VoiceBar from that list and add this installed copy again, then restart.")
+                        Text("Already enabled in macOS? An app update can leave an old permission entry. Remove lisan from that list and add this installed copy again, then restart.")
                             .font(.system(size: 11)).foregroundStyle(.secondary)
                         Button("Show App in Finder") { controller.revealInstalledApp() }
                     }
@@ -80,7 +80,7 @@ struct SettingsView: View {
                     Button("Test shortcut without recording") { controller.startShortcutTest() }
                     Text(state.lastShortcutEvent).font(.system(size: 11)).foregroundStyle(.secondary)
                     Button("Test text insertion") { controller.startInsertionTest() }
-                    Text("After clicking, focus a text field and press the dictation shortcut. Inserts ‘VoiceBar insertion test.’ without using the microphone.")
+                    Text("After clicking, focus a text field and press the dictation shortcut. Inserts ‘lisan insertion test.’ without using the microphone.")
                         .font(.system(size: 11)).foregroundStyle(.secondary)
                 }
 
@@ -151,7 +151,7 @@ struct SettingsView: View {
                             do {
                                 if enabled { try SMAppService.mainApp.register() }
                                 else { try SMAppService.mainApp.unregister() }
-                                loginError = SMAppService.mainApp.status == .requiresApproval ? "Approve VoiceBar in System Settings → General → Login Items." : nil
+                                loginError = SMAppService.mainApp.status == .requiresApproval ? "Approve lisan in System Settings → General → Login Items." : nil
                             } catch {
                                 loginError = error.localizedDescription
                                 loginEnabled = SMAppService.mainApp.status == .enabled

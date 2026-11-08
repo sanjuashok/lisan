@@ -14,7 +14,7 @@ final class TextInsertion {
 
     func capture() throws -> Target {
         guard AXIsProcessTrusted() else {
-            throw VoiceBarError("VoiceBar needs Accessibility access to insert text. Click Open Settings beside Accessibility below. On newer macOS versions, this permission is called Device Control and Data Access.")
+            throw VoiceBarError("lisan needs Accessibility access to insert text. Click Open Settings beside Accessibility below. On newer macOS versions, this permission is called Device Control and Data Access.")
         }
         guard let app = NSWorkspace.shared.frontmostApplication,
               app.processIdentifier != ProcessInfo.processInfo.processIdentifier,
@@ -22,7 +22,7 @@ final class TextInsertion {
             throw VoiceBarError("Place the cursor in an editable text field first.")
         }
         guard stringAttribute(element, kAXSubroleAttribute) != kAXSecureTextFieldSubrole else {
-            throw VoiceBarError("VoiceBar does not dictate into password fields.")
+            throw VoiceBarError("lisan does not dictate into password fields.")
         }
         guard let selection = snapshot(element) else {
             throw VoiceBarError("This field does not expose a text cursor. Try another text field.")
@@ -58,11 +58,11 @@ final class TextInsertion {
                 if !items.isEmpty { pasteboard.writeObjects(items) }
             }
         }
-        guard copied else { throw VoiceBarError("Could not prepare the clipboard. Your transcript remains in the VoiceBar menu.") }
+        guard copied else { throw VoiceBarError("Could not prepare the clipboard. Your transcript remains in the lisan menu.") }
         guard let source = CGEventSource(stateID: .privateState),
               let down = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: true),
               let up = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: false) else {
-            throw VoiceBarError("Could not send paste. Copy the last transcript from the VoiceBar menu.")
+            throw VoiceBarError("Could not send paste. Copy the last transcript from the lisan menu.")
         }
         down.flags = .maskCommand; up.flags = .maskCommand
         try validate(target)
@@ -81,7 +81,7 @@ final class TextInsertion {
             }
         }
         if let current = snapshot(target.element), current.matches(target.selection), expected != nil {
-            throw VoiceBarError("The app did not accept the paste. Copy the last transcript from the VoiceBar menu.")
+            throw VoiceBarError("The app did not accept the paste. Copy the last transcript from the lisan menu.")
         }
         // Some editors do not expose their value, or normalize it on paste.
         // Do not claim verified insertion when we cannot read the result.
@@ -92,7 +92,7 @@ final class TextInsertion {
         guard NSWorkspace.shared.frontmostApplication?.processIdentifier == target.pid,
               let current = focusedElement(pid: target.pid), CFEqual(current, target.element),
               let selection = snapshot(current), target.selection.matches(selection) else {
-            throw VoiceBarError("The cursor or text changed. Your transcript is saved in the VoiceBar menu; copy it when ready.")
+            throw VoiceBarError("The cursor or text changed. Your transcript is saved in the lisan menu; copy it when ready.")
         }
     }
     private func focusedElement(pid: pid_t) -> AXUIElement? {
