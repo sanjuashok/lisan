@@ -43,8 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.mainMenu = mainMenu
         controller = DictationController(state: state)
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        statusItem.button?.image = NSImage(systemSymbolName: "waveform", accessibilityDescription: "lisan")
-        statusItem.button?.image?.isTemplate = true
+        statusItem.button?.image = BrandIcon.menuBarImage()
         statusItem.button?.toolTip = "lisan"
         let menu = NSMenu()
         menu.delegate = self

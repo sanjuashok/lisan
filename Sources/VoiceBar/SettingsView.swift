@@ -34,15 +34,7 @@ struct SettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                HStack(spacing: 14) {
-                    Image(systemName: "waveform").font(.system(size: 25, weight: .medium))
-                        .foregroundStyle(.white).frame(width: 54, height: 54)
-                        .background(orange, in: RoundedRectangle(cornerRadius: 17))
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("A little bar. A clearer thought.").font(.system(size: 20, weight: .semibold))
-                        Text("Speak naturally. Keep your flow.").foregroundStyle(.secondary)
-                    }
-                }
+                SettingsHeader()
 
                 Text(state.status).font(.system(size: 12)).foregroundStyle(.secondary).textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
@@ -203,6 +195,22 @@ struct SettingsView: View {
                 Label("Allowed", systemImage: "checkmark.circle.fill").font(.system(size: 11)).foregroundStyle(orange)
             } else {
                 Button(buttonTitle, action: action)
+            }
+        }
+    }
+}
+
+/// Shared with the offscreen design preview so it shows the actual header.
+struct SettingsHeader: View {
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(nsImage: BrandIcon.artwork)
+                .resizable().interpolation(.high).scaledToFit()
+                .frame(width: 64, height: 64)
+                .accessibilityLabel("lisan waveform planet")
+            VStack(alignment: .leading, spacing: 4) {
+                Text("A little bar. A clearer thought.").font(.system(size: 20, weight: .semibold))
+                Text("Speak naturally. Keep your flow.").foregroundStyle(.secondary)
             }
         }
     }

@@ -28,6 +28,18 @@ app="$(pwd)/build/lisan.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp "$binary_dir/lisan" "$app/Contents/MacOS/lisan"
 cp Resources/Info.plist "$app/Contents/Info.plist"
+# Package the same artwork for Finder/Dock and the Settings header. Native
+# tools produce the standard icon sizes without another build dependency.
+icon_source="$(pwd)/Sources/VoiceBar/Brand/lisan-icon.png"
+iconset="$(pwd)/build/lisan.iconset"
+mkdir -p "$iconset"
+for size in 16 32 128 256 512; do
+    sips -z "$size" "$size" "$icon_source" --out "$iconset/icon_${size}x${size}.png" >/dev/null
+    double_size=$((size * 2))
+    sips -z "$double_size" "$double_size" "$icon_source" --out "$iconset/icon_${size}x${size}@2x.png" >/dev/null
+done
+iconutil -c icns "$iconset" -o "$app/Contents/Resources/lisan.icns"
+cp "$icon_source" "$app/Contents/Resources/lisan-icon.png"
 if [[ "${VOICEBAR_PREVIEW:-0}" == "1" ]]; then
     /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier app.voicebar.preview" "$app/Contents/Info.plist"
     /usr/libexec/PlistBuddy -c "Set :CFBundleName lisan preview" "$app/Contents/Info.plist"

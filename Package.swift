@@ -20,6 +20,7 @@ let package = Package(
         .executableTarget(
             name: "VoiceBar",
             dependencies: [.target(name: "VoiceBarCore")] + (preview ? [] : [.product(name: "FluidAudio", package: "FluidAudio")]),
+            resources: [.copy("Brand")],
             swiftSettings: preview ? [.define("VOICEBAR_PREVIEW")] : []
         ),
         .executableTarget(name: "VoiceBarCoreTests", dependencies: ["VoiceBarCore"], path: "Tests/VoiceBarCoreTests")

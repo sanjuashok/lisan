@@ -40,6 +40,8 @@ open build/lisan.app --args --settings
 
 The preview uses a separate bundle identifier and cannot transcribe.
 
+The preview export also includes `brand.png`, showing the Settings header and menu bar icon on light and dark backgrounds. See [icon artwork and generation details](Resources/Branding.md) for the source image and packaging.
+
 ### Acceptance targets
 
 These targets require device testing; passing the core checks does not establish them:
