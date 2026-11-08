@@ -52,8 +52,8 @@ In Terminal, run these commands one line at a time:
 ```sh
 mkdir -p ~/Developer
 cd ~/Developer
-git clone https://github.com/sanjuashok/voicebar.git
-cd voicebar
+git clone https://github.com/sanjuashok/lisan.git
+cd lisan
 ./scripts/build-app.sh
 ```
 
