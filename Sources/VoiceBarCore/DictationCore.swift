@@ -39,6 +39,10 @@ public struct ShortcutRecognizer {
         }
         switch shortcut {
         case .function:
+            // Reconcile a held Fn when any modifier event reports it released.
+            // macOS need not report that transition with the original key code.
+            // Starting still requires the physical Globe key, excluding arrows.
+            if event == .flagsChanged && !function { return hold.update(pressed: false) }
             // Arrow/function keys can carry the Fn flag without the Globe key being held.
             guard event == .flagsChanged && keyCode == 63 else { return nil }
             return hold.update(pressed: function)

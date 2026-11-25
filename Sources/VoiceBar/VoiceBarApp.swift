@@ -1,6 +1,5 @@
 import AppKit
 import Combine
-import ServiceManagement
 import SwiftUI
 import VoiceBarCore
 
@@ -8,6 +7,8 @@ import VoiceBarCore
 enum VoiceBarApp {
     @MainActor
     static func main() {
+        // Migrate before AppDelegate constructs AppState and reads preferences.
+        AppPreferencesMigration.migrate(bundleIdentifier: Bundle.main.bundleIdentifier)
         let app = NSApplication.shared
         #if VOICEBAR_PREVIEW
         if let index = CommandLine.arguments.firstIndex(of: "--export-previews"), CommandLine.arguments.indices.contains(index + 1) {
@@ -37,6 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let root = NSMenuItem()
         root.submenu = appMenu
         mainMenu.addItem(root)
+        add("Notes", action: #selector(showNotes), key: "1", to: appMenu)
         add("Settings…", action: #selector(showSettings), key: ",", to: appMenu)
         appMenu.addItem(.separator())
         add("Quit lisan", action: #selector(quit), key: "q", to: appMenu)
@@ -73,14 +75,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(.separator())
         let enabled = add("lisan Enabled", action: #selector(toggleEnabled), to: menu)
         enabled.state = state.enabled ? .on : .off
+        add("Notes", action: #selector(showNotes), key: "1", to: menu)
         add("Settings…", action: #selector(showSettings), key: ",", to: menu)
-        let login = add("Launch at Login", action: #selector(toggleLogin), to: menu)
-        login.state = SMAppService.mainApp.status == .enabled ? .on : .off
-        if !state.lastTranscript.isEmpty {
-            menu.addItem(.separator())
-            add("Copy Last Transcript", action: #selector(copyTranscript), to: menu)
-            add("Clear Last Transcript", action: #selector(clearTranscript), to: menu)
-        }
         menu.addItem(.separator())
         add("Quit lisan", action: #selector(quit), key: "q", to: menu)
     }
@@ -93,20 +89,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     @objc private func toggleEnabled() { state.enabled.toggle() }
     @objc private func showSettings() { settings.show(state: state, controller: controller) }
-    @objc private func copyTranscript() {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(state.lastTranscript, forType: .string)
-    }
-    @objc private func clearTranscript() { state.lastTranscript = "" }
-    @objc private func toggleLogin() {
-        do {
-            if SMAppService.mainApp.status == .enabled { try SMAppService.mainApp.unregister() }
-            else { try SMAppService.mainApp.register() }
-            if SMAppService.mainApp.status == .requiresApproval {
-                state.status = "Approve lisan in System Settings → General → Login Items."
-                SMAppService.openSystemSettingsLoginItems()
-            }
-        } catch { controller.showError("Launch at Login: \(error.localizedDescription)") }
-    }
+    @objc private func showNotes() { settings.show(state: state, controller: controller, tab: .notes) }
     @objc private func quit() { NSApp.terminate(nil) }
 }

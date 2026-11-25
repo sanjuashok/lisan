@@ -6,16 +6,18 @@ import VoiceBarCore
 @MainActor
 final class SettingsWindowController {
     private var window: NSWindow?
-    func show(state: AppState, controller: DictationController) {
+    func show(state: AppState, controller: DictationController, tab: AppTab = .settings) {
         controller.cancel()
         controller.refreshPermissions()
+        state.selectedTab = tab
         if window == nil {
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 650),
-                                  styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
-            window.title = "lisan Settings"
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 860, height: 700),
+                                  styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+            window.title = "lisan"
+            window.minSize = NSSize(width: 760, height: 610)
             window.titlebarAppearsTransparent = true
             window.isReleasedWhenClosed = false
-            window.contentView = NSHostingView(rootView: SettingsView(state: state, controller: controller))
+            window.contentView = NSHostingView(rootView: LisanWindowView(state: state, controller: controller))
             window.center()
             self.window = window
         }
@@ -31,49 +33,47 @@ struct SettingsView: View {
     @State private var loginEnabled = SMAppService.mainApp.status == .enabled
     @State private var loginError: String?
 
+    private var needsShortcutPermission: Bool {
+        state.enabled && !state.shortcutAvailable && !state.inputMonitoringGranted
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                SettingsHeader()
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("A LITTLE MORE PERSONAL").font(.system(size: 9, weight: .semibold)).tracking(1.8).foregroundStyle(orange)
+                    Text("Settings").font(.system(size: 32, weight: .semibold)).tracking(-1)
+                }.padding(.bottom, 4)
 
-                Text(state.status).font(.system(size: 12)).foregroundStyle(.secondary).textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
+                section("YOUR NOTES") {
+                    NoteDestinationSettings(store: state.notes)
+                }
 
-                section("READY WHEN YOU ARE") {
-                    permissionRow("Microphone", subtitle: "Listen only while you hold the shortcut.", granted: state.microphoneGranted, buttonTitle: "Allow / Settings") {
-                        controller.requestMicrophone()
-                    }
-                    Divider()
-                    permissionRow("Accessibility", subtitle: "Insert text at your original cursor.", granted: state.accessibilityGranted) {
-                        controller.requestAccessibility()
-                    }
-                    if !state.shortcutAvailable {
-                        Divider()
-                        permissionRow("Input Monitoring", subtitle: "Allow global hold and release detection.", granted: state.inputMonitoringGranted) {
-                            controller.requestInputMonitoring()
+                if !state.microphoneGranted || !state.accessibilityGranted || needsShortcutPermission {
+                    section {
+                        if !state.microphoneGranted {
+                            permissionRow("Microphone", subtitle: "Listen only while you hold the shortcut.", buttonTitle: "Allow / Settings") {
+                                controller.requestMicrophone()
+                            }
+                            if !state.accessibilityGranted || needsShortcutPermission { Divider() }
+                        }
+                        if !state.accessibilityGranted {
+                            permissionRow("Accessibility", subtitle: "Insert text at your original cursor.") {
+                                controller.requestAccessibility()
+                            }
+                            if needsShortcutPermission { Divider() }
+                        }
+                        if needsShortcutPermission {
+                            permissionRow("Input Monitoring", subtitle: "Allow global hold and release detection.") {
+                                controller.requestInputMonitoring()
+                            }
+                        }
+                        if !state.accessibilityGranted || needsShortcutPermission {
+                            Text("Listed as VoiceBar, or already enabled? Remove the old VoiceBar or lisan entry and add this installed copy of lisan, then restart. The renamed app needs its own permissions.")
+                                .font(.system(size: 11)).foregroundStyle(.secondary)
+                            Button("Show App in Finder") { controller.revealInstalledApp() }
                         }
                     }
-                    HStack {
-                        Button("Check Permissions") { controller.refreshPermissions(showFeedback: true) }
-                        Button("Restart lisan") { controller.restartForPermissions() }
-                            .disabled(state.restarting)
-                    }
-                    if !state.permissionFeedback.isEmpty {
-                        Text(state.permissionFeedback).font(.system(size: 11)).foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    if !state.accessibilityGranted || !state.shortcutAvailable {
-                        Text("Already enabled in macOS? An app update can leave an old permission entry. Remove lisan from that list and add this installed copy again, then restart.")
-                            .font(.system(size: 11)).foregroundStyle(.secondary)
-                        Button("Show App in Finder") { controller.revealInstalledApp() }
-                    }
-                    Text(state.shortcutAvailable ? "Global listener installed. Test the shortcut in another app to verify detection." : "Global shortcut access is missing. The shortcut can still be tested while this Settings window is focused.")
-                        .font(.system(size: 11)).foregroundStyle(.secondary)
-                    Button("Test shortcut without recording") { controller.startShortcutTest() }
-                    Text(state.lastShortcutEvent).font(.system(size: 11)).foregroundStyle(.secondary)
-                    Button("Test text insertion") { controller.startInsertionTest() }
-                    Text("After clicking, focus a text field and press the dictation shortcut. Inserts ‘lisan insertion test.’ without using the microphone.")
-                        .font(.system(size: 11)).foregroundStyle(.secondary)
                 }
 
                 section("YOUR VOICE STAYS HERE") {
@@ -96,38 +96,6 @@ struct SettingsView: View {
                         }
                     }
                     if state.preparing { ProgressView(value: state.modelProgress).tint(orange) }
-                    Divider()
-                    Toggle("Intelligent text cleanup", isOn: $state.smartCleanup)
-                    Text(SpeechService.cleanupDescription).font(.system(size: 11)).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    HStack {
-                        Text("Cleanup instructions").fontWeight(.medium)
-                        Spacer()
-                        Button("Reset") { state.cleanupInstructions = "" }
-                            .disabled(state.cleanupInstructions.isEmpty)
-                    }
-                    ZStack(alignment: .topLeading) {
-                        TextEditor(text: Binding(
-                            get: { state.cleanupInstructions },
-                            set: { state.cleanupInstructions = String($0.prefix(CleanupPrompt.maximumCustomLength)) }
-                        ))
-                        .font(.system(size: 12))
-                        .scrollContentBackground(.hidden)
-                        .padding(4)
-                        if state.cleanupInstructions.isEmpty {
-                            Text("For example: Keep it casual. Use contractions. Avoid semicolons. Don’t add a final period.")
-                                .font(.system(size: 12)).foregroundStyle(.tertiary)
-                                .padding(.horizontal, 9).padding(.vertical, 12)
-                                .allowsHitTesting(false)
-                        }
-                    }
-                    .frame(height: 100)
-                    .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
-                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.primary.opacity(0.12)))
-                    .accessibilityLabel("Cleanup instructions")
-                    Text("Saved automatically. Used when intelligent cleanup is on and available. Leave blank for the default style. Up to 1,000 characters.")
-                        .font(.system(size: 11)).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 section("MAKE IT YOURS") {
@@ -160,14 +128,41 @@ struct SettingsView: View {
                 if let latency = state.lastLatency {
                     Text(String(format: "Last processing + insertion: %.2f seconds", latency)).font(.system(size: 10, design: .monospaced)).foregroundStyle(.tertiary)
                 }
+                DisclosureGroup("Troubleshooting") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(state.status).textSelection(.enabled)
+                        Text(state.lastShortcutEvent).foregroundStyle(.secondary)
+                        Text("Microphone: \(state.microphoneGranted ? "allowed" : "missing") · Accessibility: \(state.accessibilityGranted ? "allowed" : "missing") · Input Monitoring: \(state.inputMonitoringGranted ? "allowed" : "missing")")
+                            .foregroundStyle(.secondary)
+                        Text(state.shortcutAvailable ? "Shortcut listener registered. A detected press above confirms delivery." : "Global shortcut listener is unavailable.")
+                            .foregroundStyle(.secondary)
+                        HStack {
+                            Button("Test shortcut") { controller.startShortcutTest() }
+                            Button("Check permissions") { controller.refreshPermissions(showFeedback: true) }
+                            Button("Restart lisan") { controller.restartForPermissions() }
+                                .disabled(state.restarting)
+                        }
+                        if !state.permissionFeedback.isEmpty {
+                            Text(state.permissionFeedback).foregroundStyle(.secondary)
+                        }
+                        if !state.recentModifierEvents.isEmpty {
+                            Text("Recent modifier events · no typed text is recorded").fontWeight(.medium)
+                            ForEach(Array(state.recentModifierEvents.enumerated()), id: \.offset) { _, event in
+                                Text(event).foregroundStyle(.secondary).textSelection(.enabled)
+                            }
+                        }
+                    }
+                    .font(.system(size: 11)).frame(maxWidth: .infinity, alignment: .leading).padding(.top, 8)
+                }
                 #if VOICEBAR_PREVIEW
                 Text("UI PREVIEW · Speech recognition is not included in this build.")
                     .font(.system(size: 10, weight: .semibold)).foregroundStyle(orange)
                 #endif
-            }.padding(26)
+            }.frame(maxWidth: 740).frame(maxWidth: .infinity).padding(32)
         }
-        .frame(width: 520, height: 650)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
+        .toggleStyle(.switch)
         .tint(orange)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             controller.refreshPermissions()
@@ -175,27 +170,25 @@ struct SettingsView: View {
         }
     }
 
-    private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+    private func section<Content: View>(_ title: String? = nil, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title).font(.system(size: 9, weight: .semibold)).tracking(1.4).foregroundStyle(.secondary)
+            if let title {
+                Text(title).font(.system(size: 9, weight: .semibold)).tracking(1.4).foregroundStyle(.secondary)
+            }
             VStack(alignment: .leading, spacing: 12, content: content)
                 .padding(16)
                 .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.primary.opacity(0.05)))
         }
     }
-    private func permissionRow(_ title: String, subtitle: String, granted: Bool, buttonTitle: String = "Open Settings", action: @escaping () -> Void) -> some View {
+    private func permissionRow(_ title: String, subtitle: String, buttonTitle: String = "Open Settings", action: @escaping () -> Void) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title).fontWeight(.medium)
                 Text(subtitle).font(.system(size: 11)).foregroundStyle(.secondary)
             }
             Spacer()
-            if granted {
-                Label("Allowed", systemImage: "checkmark.circle.fill").font(.system(size: 11)).foregroundStyle(orange)
-            } else {
-                Button(buttonTitle, action: action)
-            }
+            Button(buttonTitle, action: action)
         }
     }
 }
@@ -208,10 +201,6 @@ struct SettingsHeader: View {
                 .resizable().interpolation(.high).scaledToFit()
                 .frame(width: 64, height: 64)
                 .accessibilityLabel("lisan waveform planet")
-            VStack(alignment: .leading, spacing: 4) {
-                Text("A little bar. A clearer thought.").font(.system(size: 20, weight: .semibold))
-                Text("Speak naturally. Keep your flow.").foregroundStyle(.secondary)
-            }
         }
     }
 }

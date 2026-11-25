@@ -22,8 +22,10 @@ if [[ "${VOICEBAR_PREVIEW:-0}" != "1" ]]; then
     fi
 fi
 
-swift build -c "$configuration" --product lisan
-binary_dir="$(swift build -c "$configuration" --show-bin-path)"
+# Forward optional SwiftPM flags, e.g. --disable-sandbox when the caller already
+# runs inside a restricted environment that cannot create a nested sandbox.
+swift build "$@" -c "$configuration" --product lisan
+binary_dir="$(swift build "$@" -c "$configuration" --show-bin-path)"
 app="$(pwd)/build/lisan.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp "$binary_dir/lisan" "$app/Contents/MacOS/lisan"
@@ -41,7 +43,7 @@ done
 iconutil -c icns "$iconset" -o "$app/Contents/Resources/lisan.icns"
 cp "$icon_source" "$app/Contents/Resources/lisan-icon.png"
 if [[ "${VOICEBAR_PREVIEW:-0}" == "1" ]]; then
-    /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier app.voicebar.preview" "$app/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier app.lisan.preview" "$app/Contents/Info.plist"
     /usr/libexec/PlistBuddy -c "Set :CFBundleName lisan preview" "$app/Contents/Info.plist"
     /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName lisan preview" "$app/Contents/Info.plist"
 fi

@@ -3,7 +3,7 @@
 <plist version="1.0"><dict>
     <key>CFBundleName</key><string>lisan</string>
     <key>CFBundleDisplayName</key><string>lisan</string>
-    <key>CFBundleIdentifier</key><string>app.voicebar.mac</string>
+    <key>CFBundleIdentifier</key><string>app.lisan.mac</string>
     <key>CFBundleExecutable</key><string>lisan</string>
     <key>CFBundleIconFile</key><string>lisan</string>
     <key>CFBundlePackageType</key><string>APPL</string>
@@ -13,5 +13,6 @@
     <key>LSUIElement</key><true/>
     <key>NSHighResolutionCapable</key><true/>
     <key>NSMicrophoneUsageDescription</key><string>lisan uses your microphone only while you hold the dictation shortcut. Audio is transcribed on your Mac and never uploaded.</string>
+    <key>NSDocumentsFolderUsageDescription</key><string>lisan appends your voice notes to the Markdown file you choose in Documents/Notes.</string>
     <key>NSHumanReadableCopyright</key><string>lisan</string>
 </dict></plist>

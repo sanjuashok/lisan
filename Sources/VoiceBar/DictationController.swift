@@ -18,22 +18,36 @@ final class DictationController {
     private var limitTask: Task<Void, Never>?
     private var setupTask: Task<Void, Never>?
     private var sessionID = UUID()
+    private var capturedAt = Date()
+    private var captureTimeZone = TimeZone.current
     private var insertionTestActive = false
     private var observers: [NSObjectProtocol] = []
 
     init(state: AppState) {
         self.state = state
         bar = FloatingBar(state: state)
+        bar.onSaveAsNote = { [weak self] in self?.chooseNote() }
         recorder.onAmplitude = { [weak self] amplitude in
             guard let self, self.state.phase == .listening else { return }
             self.state.amplitude = amplitude
         }
         keyboard.onHold = { [weak self] held, scope in
-            let origin = scope == .global ? "Global shortcut" : "Shortcut inside lisan"
-            self?.state.lastShortcutEvent = "\(origin) detected: \(held ? "holding" : "released")."
+            let origin = scope == .system ? "System shortcut" : scope == .global ? "Global shortcut" : "Shortcut inside lisan"
+            let app = NSWorkspace.shared.frontmostApplication?.localizedName ?? "Unknown app"
+            let time = Date().formatted(date: .omitted, time: .standard)
+            self?.state.lastShortcutEvent = "\(origin) detected: \(held ? "holding" : "released") in \(app) at \(time)."
             if held { self?.begin() } else { self?.finish() }
         }
         keyboard.onCancel = { [weak self] in self?.cancel() }
+        keyboard.onModifierEvent = { [weak self] key, function, scope in
+            guard let self else { return }
+            // Keep only modifier metadata in memory, never typed characters.
+            let app = NSWorkspace.shared.frontmostApplication?.localizedName ?? "Unknown app"
+            let time = Date().formatted(date: .omitted, time: .standard)
+            let origin = scope == .system ? "System" : scope == .global ? "Global" : "Local"
+            self.state.recentModifierEvents.insert("\(time) · \(app) · \(origin) · key \(key) · Fn \(function ? "down" : "up")", at: 0)
+            self.state.recentModifierEvents = Array(self.state.recentModifierEvents.prefix(16))
+        }
         state.$enabled.dropFirst().receive(on: DispatchQueue.main).sink { [weak self] enabled in
             guard let self else { return }
             if !enabled { self.cancel(); self.keyboard.stop(); self.state.shortcutAvailable = false }
@@ -56,7 +70,8 @@ final class DictationController {
             MainActor.assumeIsolated {
                 guard let self, self.state.phase == .listening else { return }
                 self.cancel()
-                self.showError("The microphone changed. Hold the shortcut again to start a new recording.")
+                self.showError("The microphone changed. Hold the shortcut again to start a new recording.",
+                               barLabel: "Microphone changed. Hold again.")
             }
         })
         bar.setVisible(state.enabled)
@@ -112,7 +127,7 @@ final class DictationController {
 
     private func openPrivacySettings(_ pane: String, name: String) {
         refreshPermissions()
-        state.permissionFeedback = "Enable lisan under \(name), then return here and restart lisan. If it is already enabled but access is still missing, remove the old lisan entry and add this installed copy again using Show App in Finder."
+        state.permissionFeedback = "Enable lisan under \(name), then return here and restart lisan. If you see VoiceBar or access is still missing, remove the old VoiceBar or lisan entry and add this installed copy again using Show App in Finder."
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)")!
         if !NSWorkspace.shared.open(url) {
             state.permissionFeedback = "Could not open System Settings. Open it manually, choose Privacy & Security → \(name), and enable lisan."
@@ -188,6 +203,8 @@ final class DictationController {
     private func begin() {
         guard state.enabled, state.phase != .listening, state.phase != .processing else { return }
         feedbackTask?.cancel()
+        state.savingAsNote = false
+        state.canChooseNote = false
         #if VOICEBAR_PREVIEW
         state.shortcutTestActive = true
         #endif
@@ -198,9 +215,25 @@ final class DictationController {
             state.status = "Shortcut detected. Bar test only; no audio is recorded."
             return
         }
-        guard state.modelsReady else { showError("Speech model is not ready. Open Settings from the lisan menu."); return }
+        guard state.modelsReady else {
+            if state.preparing {
+                showError("The speech model is loading. Hold the shortcut again when it’s ready.",
+                          barLabel: "Speech model is loading")
+            } else {
+                showError("Speech model is not ready. Open Settings from the lisan menu.",
+                          barLabel: "Set up the speech model in Settings")
+            }
+            return
+        }
         do {
-            target = try insertion.capture()
+            target = try insertion.capture(shortcut: state.shortcut)
+            if insertionTestActive && target == nil {
+                throw VoiceBarError("Click a text field to run the insertion test.")
+            }
+            state.savingAsNote = target == nil
+            state.canChooseNote = !insertionTestActive
+            capturedAt = Date()
+            captureTimeZone = .current
             bar.position(on: target?.screen)
             state.amplitude = 0
             state.phase = .listening
@@ -213,17 +246,26 @@ final class DictationController {
             }
         } catch {
             target = nil
+            state.canChooseNote = false
             recorder.cancel()
-            showError(error.localizedDescription)
+            showError(error)
         }
+    }
+
+    private func chooseNote() {
+        guard state.phase == .listening, state.canChooseNote else { return }
+        state.savingAsNote = true
+        target?.activity.stop()
+        target = nil
     }
 
     private func finish() {
         guard state.phase == .listening else { return }
+        state.canChooseNote = false
         if state.shortcutTestActive {
             state.shortcutTestActive = false
             state.phase = .idle
-            state.status = "Shortcut test passed: press expands, release collapses. No audio was recorded."
+            state.status = "Shortcut press and release received. Confirm the bar was visible while holding. No audio was recorded."
             return
         }
         if insertionTestActive, let target {
@@ -238,13 +280,18 @@ final class DictationController {
                     showInsertionResult(result)
                 } catch {
                     guard sessionID == id, !Task.isCancelled else { return }
-                    showError(error.localizedDescription)
+                    showError(error)
                 }
             }
             return
         }
         limitTask?.cancel()
-        guard let audio = recorder.stop(), let target else { cancel(); return }
+        guard let audio = recorder.stop() else { cancel(); return }
+        let target = self.target
+        let saveAsNote = state.savingAsNote
+        let noteDate = capturedAt
+        let noteTimeZone = captureTimeZone
+        guard saveAsNote || target != nil else { cancel(); return }
         self.target = nil
         guard audio.duration >= 0.25, audio.peak > 0.003 else {
             state.status = "No speech detected. Hold the shortcut and try again."
@@ -266,14 +313,27 @@ final class DictationController {
                 guard sessionID == id else { return }
                 guard !cleaned.isEmpty else { throw VoiceBarError("No speech recognized. Try speaking closer to the microphone.") }
                 state.lastTranscript = cleaned
-                let result = try await insertion.insert(cleaned, into: target)
-                guard sessionID == id, !Task.isCancelled else { return }
-                state.lastLatency = Date().timeIntervalSince(start)
-                showInsertionResult(result)
+                if saveAsNote {
+                    // Persistence starts only after the cancellation/session check.
+                    // Once committed, a note stays saved even if the window opens.
+                    let note = VoiceNote(text: cleaned, capturedAt: noteDate, timeZone: noteTimeZone)
+                    let result = try await state.notes.save(note)
+                    guard sessionID == id, !Task.isCancelled else { return }
+                    state.lastLatency = Date().timeIntervalSince(start)
+                    state.completionLabel = result.exportError == nil ? "Note saved" : "Saved · check file settings"
+                    state.status = result.exportError == nil ? "Note saved in Lisan and appended to your Markdown file." : "Note saved in Lisan. The Markdown file couldn’t be updated; open Settings to retry."
+                    state.phase = .complete
+                    collapse(after: result.exportError == nil ? 1_400_000_000 : 4_000_000_000)
+                } else if let target {
+                    let result = try await insertion.insert(cleaned, into: target)
+                    guard sessionID == id, !Task.isCancelled else { return }
+                    state.lastLatency = Date().timeIntervalSince(start)
+                    showInsertionResult(result)
+                }
             } catch is CancellationError { /* A cancelled session must never insert text. */ }
             catch {
                 guard sessionID == id, !Task.isCancelled else { return }
-                showError(error.localizedDescription)
+                showError(error)
             }
         }
     }
@@ -285,6 +345,8 @@ final class DictationController {
         recorder.cancel()
         processingTask?.cancel(); feedbackTask?.cancel(); limitTask?.cancel()
         target = nil
+        state.savingAsNote = false
+        state.canChooseNote = false
         state.phase = .idle
         state.amplitude = 0
     }
@@ -296,15 +358,19 @@ final class DictationController {
             state.status = "Text insertion verified. Ready for the next dictation."
         case .pasteSent:
             state.completionLabel = "Paste sent"
-            state.status = "Paste sent, but this editor did not expose a matching result. If nothing appeared, copy the last transcript from the lisan menu."
+            state.status = "Paste sent, but this editor did not expose a matching result. If nothing appeared, try another text field."
         }
         state.phase = .complete
         collapse(after: 700_000_000)
     }
-    func showError(_ message: String) {
+    private func showError(_ error: Error) {
+        showError(error.localizedDescription, barLabel: (error as? VoiceBarError)?.barLabel)
+    }
+    private func showError(_ message: String, barLabel: String? = nil) {
         state.status = message
+        state.failureLabel = barLabel ?? message
         state.phase = .failure
-        collapse(after: 2_000_000_000)
+        collapse(after: 4_000_000_000)
     }
     private func collapse(after delay: UInt64) {
         feedbackTask?.cancel()

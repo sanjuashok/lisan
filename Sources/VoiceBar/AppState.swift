@@ -4,6 +4,13 @@ import VoiceBarCore
 
 @MainActor
 final class AppState: ObservableObject {
+    let notes: NoteStore
+    @Published var selectedTab: AppTab = .notes
+    @Published var savingAsNote = false
+    @Published var canChooseNote = false
+
+    init(notes: NoteStore? = nil) { self.notes = notes ?? NoteStore() }
+
     @Published var phase: BarPhase = .idle
     @Published var amplitude: Double = 0
     @Published var enabled = UserDefaults.standard.object(forKey: "enabled") as? Bool ?? true {
@@ -30,14 +37,26 @@ final class AppState: ObservableObject {
     @Published var restarting = false
     @Published var shortcutAvailable = false
     @Published var lastShortcutEvent = "No shortcut press detected yet."
+    @Published var recentModifierEvents: [String] = []
     @Published var shortcutTestActive = false
     @Published var lastLatency: Double?
     @Published var completionLabel = "Inserted"
+    @Published var failureLabel = ""
 
+}
+
+enum AppTab: String, CaseIterable, Identifiable {
+    case notes = "Notes", settings = "Settings"
+    var id: Self { self }
+    var icon: String { self == .notes ? "note.text" : "slider.horizontal.3" }
 }
 
 struct VoiceBarError: LocalizedError {
     let message: String
-    init(_ message: String) { self.message = message }
+    let barLabel: String?
+    init(_ message: String, barLabel: String? = nil) {
+        self.message = message
+        self.barLabel = barLabel
+    }
     var errorDescription: String? { message }
 }

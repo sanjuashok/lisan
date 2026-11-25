@@ -3,6 +3,43 @@ import CoreGraphics
 import VoiceBarCore
 
 final class DictationCoreTests {
+    func testPreferenceMigrationPreservesChoicesAndRunsOnce() {
+        let legacy: [String: Any] = ["enabled": false, "shortcut": "controlOptionSpace",
+                                   "smartCleanup": false, "cleanupInstructions": "Keep it casual.",
+                                   "hasShownSetup": true, "unrelated": "skip"]
+        let result = AppPreferencesMigration.merged(current: ["shortcut": "function"], legacy: legacy)
+        XCTAssertEqual(result["shortcut"] as? String, "function")
+        XCTAssertEqual(result["enabled"] as? Bool, false)
+        XCTAssertEqual(result["smartCleanup"] as? Bool, false)
+        XCTAssertEqual(result["cleanupInstructions"] as? String, "Keep it casual.")
+        XCTAssertNil(result["hasShownSetup"])
+        XCTAssertNil(result["unrelated"])
+        XCTAssertEqual(result[AppPreferencesMigration.marker] as? Bool, true)
+        var reset = result
+        reset.removeValue(forKey: "cleanupInstructions")
+        XCTAssertNil(AppPreferencesMigration.merged(current: reset, legacy: legacy)["cleanupInstructions"])
+    }
+
+    func testEditorsWithPartialAccessibilityData() {
+        let opaque = InsertionSnapshot(value: nil, selection: nil)
+        let valueOnly = InsertionSnapshot(value: "draft", selection: nil)
+        let cursor = SelectionSnapshot(value: "draft", location: 5, length: 0)
+        let complete = InsertionSnapshot(value: "draft", selection: cursor)
+        // A tree can become available after the initial capture.
+        XCTAssertTrue(opaque.matches(opaque))
+        XCTAssertTrue(opaque.matches(complete))
+        XCTAssertTrue(valueOnly.matches(complete))
+        XCTAssertTrue(complete.matches(complete))
+        let rangeOnly = InsertionSnapshot(value: nil, selection: .init(value: nil, location: 5, length: 0))
+        XCTAssertTrue(rangeOnly.matches(complete))
+        XCTAssertFalse(rangeOnly.matches(.init(value: nil, selection: .init(value: nil, location: 0, length: 0))))
+        // Never drop evidence captured from a readable field.
+        XCTAssertFalse(valueOnly.matches(opaque))
+        XCTAssertFalse(complete.matches(valueOnly))
+        XCTAssertFalse(valueOnly.matches(.init(value: "edited", selection: nil)))
+        XCTAssertFalse(complete.matches(.init(value: "draft", selection: .init(value: "draft", location: 0, length: 0))))
+    }
+
     func testCleanupPreferencesAndDefaultStyle() {
         let defaults = CleanupPrompt.instructions(custom: "")
         XCTAssertEqual(CleanupPrompt.instructions(custom: " \n\t "), defaults)
@@ -27,6 +64,17 @@ final class DictationCoreTests {
         var recognizer = ShortcutRecognizer()
         XCTAssertNil(recognizer.receive(.keyDown, keyCode: 123, function: true, control: false, option: false, shortcut: .function))
         XCTAssertNil(recognizer.receive(.flagsChanged, keyCode: 123, function: true, control: false, option: false, shortcut: .function))
+    }
+    func testFnReleaseWithDifferentModifierKeyCode() {
+        var recognizer = ShortcutRecognizer()
+        XCTAssertEqual(recognizer.receive(.flagsChanged, keyCode: 63, function: true, control: false, option: false, shortcut: .function), true)
+        // A different modifier event must clear the hold when Fn is absent.
+        XCTAssertEqual(recognizer.receive(.flagsChanged, keyCode: 56, function: false, control: false, option: false, shortcut: .function), false)
+        XCTAssertNil(recognizer.receive(.flagsChanged, keyCode: 63, function: false, control: false, option: false, shortcut: .function))
+        XCTAssertEqual(recognizer.receive(.flagsChanged, keyCode: 63, function: true, control: false, option: false, shortcut: .function), true)
+        recognizer.reset()
+        // Broader release handling must not broaden which keys can start Fn.
+        XCTAssertNil(recognizer.receive(.flagsChanged, keyCode: 56, function: true, control: false, option: false, shortcut: .function))
     }
     func testAlternateShortcutEndsWhenModifierReleased() {
         var recognizer = ShortcutRecognizer()
@@ -115,11 +163,14 @@ private func XCTAssertEqual<T: Equatable>(_ actual: T, _ expected: T, file: Stat
 }
 @main
 struct CoreTestRunner {
-    static func main() {
+    static func main() async throws {
         let tests = DictationCoreTests()
         let checks: [(String, () -> Void)] = [
+            ("rename preference migration", tests.testPreferenceMigrationPreservesChoicesAndRunsOnce),
+            ("partial editor accessibility data", tests.testEditorsWithPartialAccessibilityData),
             ("cleanup preferences, defaults, and length bound", tests.testCleanupPreferencesAndDefaultStyle),
             ("physical Fn and duplicate event delivery", tests.testPhysicalFnPressReleaseAndDuplicateDelivery),
+            ("Fn release through another modifier event", tests.testFnReleaseWithDifferentModifierKeyCode),
             ("arrow-key Fn flag filtering", tests.testArrowKeysNeverStartFnDictation),
             ("alternate shortcut modifier release", tests.testAlternateShortcutEndsWhenModifierReleased),
             ("hold transitions", tests.testHoldEmitsOnlyOneStartAndOneStop),
@@ -134,5 +185,6 @@ struct CoreTestRunner {
         ]
         for (name, check) in checks { check(); print("PASS: \(name)") }
         print("\(checks.count) core regression checks passed.")
+        try await NotesTests.run()
     }
 }
