@@ -52,9 +52,13 @@ final class ShortcutMonitor {
     }
 
     func reset() {
+        invalidatePendingEvents()
+        onCancel?()
+    }
+
+    private func invalidatePendingEvents() {
         generation &+= 1
         recognizer.reset()
-        onCancel?()
     }
 
     private func removeGlobalMonitor() {
@@ -88,11 +92,13 @@ final class ShortcutMonitor {
         sessionSource = nil
     }
 
-    private func receiveSessionEvent(_ type: CGEventType, event: CGEvent) {
+    func receiveSessionEvent(_ type: CGEventType, event: CGEvent) {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            // Mark the interruption before the tap resumes, so the next hold
+            // belongs to the new generation even if cancellation is still queued.
+            invalidatePendingEvents()
+            DispatchQueue.main.async { [weak self] in self?.onCancel?() }
             if let sessionTap { CGEvent.tapEnable(tap: sessionTap, enable: true) }
-            // Audio shutdown must not delay the event-tap callback either.
-            DispatchQueue.main.async { [weak self] in self?.reset() }
             return
         }
         let input: WakeKeyEvent

@@ -23,7 +23,8 @@ let package = Package(
             resources: [.copy("Brand")],
             swiftSettings: preview ? [.define("VOICEBAR_PREVIEW")] : []
         ),
-        .executableTarget(name: "VoiceBarCoreTests", dependencies: ["VoiceBarCore"], path: "Tests/VoiceBarCoreTests")
+        .executableTarget(name: "VoiceBarCoreTests", dependencies: ["VoiceBarCore"], path: "Tests/VoiceBarCoreTests"),
+        .testTarget(name: "ShortcutMonitorTests", dependencies: ["VoiceBar"])
     ],
     swiftLanguageModes: [.v5]
 )
